@@ -9,7 +9,7 @@ from flask_cors import CORS
 from werkzeug.utils import secure_filename
 import PyPDF2
 
-from services.llm import call_llm
+from services.llm import call_llm, LLMServiceError
 from services.rag import (
     build_chat_prompt, build_rag_prompt, build_refine_prompt,
     retrieve_docs, retrieve_all_session_docs, has_relevant_docs, is_doc_reference,
@@ -29,6 +29,7 @@ CORS(app)
 
 UPLOAD_FOLDER = "/tmp/uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+ENABLE_RAG_REFINE = os.getenv("ENABLE_RAG_REFINE", "false").lower() == "true"
 
 
 @app.route("/health", methods=["GET"])
@@ -94,6 +95,8 @@ def chat():
 
     # Create session if not provided
     if not session_id:
+        if not user_id:
+            return jsonify({"error": "user_id required when session_id is missing"}), 400
         session = create_session(user_id)
         session_id = session["id"]
 
@@ -102,7 +105,8 @@ def chat():
 
     # Determine retrieval strategy
     docs = []
-    if is_doc_reference(message):
+    doc_intent = is_doc_reference(message)
+    if doc_intent:
         # User is referring to their uploaded doc — fetch all session chunks
         docs = retrieve_all_session_docs(session_id)
     
@@ -110,18 +114,35 @@ def chat():
         # Try semantic search filtered by session
         docs = retrieve_docs(message, session_id=session_id)
 
-    if has_relevant_docs(docs):
-        # RAG mode: documents found → generate answer from docs, then refine
-        rag_prompt = build_rag_prompt(message, history, docs)
-        initial_answer = call_llm(rag_prompt)
+    has_docs = has_relevant_docs(docs)
 
-        # Refine the answer for clarity and accuracy
-        refine_prompt = build_refine_prompt(message, initial_answer, docs)
-        response = call_llm(refine_prompt)
-    else:
-        # Normal chatbot mode: no relevant docs, just chat
-        chat_prompt = build_chat_prompt(message, history)
-        response = call_llm(chat_prompt)
+    try:
+        if doc_intent and not has_docs:
+            response = (
+                "I couldn't find indexed document chunks in this chat session yet. "
+                "Please upload a PDF in this session, then ask your document question again."
+            )
+        elif has_docs:
+            # RAG mode: documents found → generate answer from docs.
+            rag_prompt = build_rag_prompt(message, history, docs)
+            initial_answer = call_llm(rag_prompt)
+
+            if ENABLE_RAG_REFINE:
+                # Try to refine the answer, but keep the initial answer if refinement fails.
+                try:
+                    refine_prompt = build_refine_prompt(message, initial_answer, docs)
+                    response = call_llm(refine_prompt)
+                except LLMServiceError:
+                    response = initial_answer
+            else:
+                response = initial_answer
+        else:
+            # Normal chatbot mode: no relevant docs, just chat.
+            chat_prompt = build_chat_prompt(message, history)
+            response = call_llm(chat_prompt)
+    except LLMServiceError as err:
+        app.logger.warning("LLM request failed: %s", err)
+        response = str(err) or "The AI provider is temporarily unavailable."
 
     # Save messages to Supabase
     save_message(session_id, "user", message)
@@ -130,7 +151,7 @@ def chat():
     return jsonify({
         "response": response,
         "session_id": session_id,
-        "mode": "rag" if has_relevant_docs(docs) else "chat",
+        "mode": "rag" if has_docs else "chat",
     })
 
 
@@ -141,6 +162,9 @@ def upload():
 
     file = request.files["file"]
     session_id = request.form.get("session_id", "")
+
+    if not session_id:
+        return jsonify({"error": "session_id required"}), 400
     
     if file.filename == "":
         return jsonify({"error": "No file selected"}), 400

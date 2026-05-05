@@ -7,7 +7,32 @@ import { ChatInput } from "./chat-input";
 import { Greeting } from "./greeting";
 import { PanelLeftIcon } from "lucide-react";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
+function getApiBaseUrl() {
+  const configured = process.env.NEXT_PUBLIC_API_URL?.trim();
+  if (configured) {
+    return configured.replace(/\/$/, "");
+  }
+
+  // Local-only fallback to keep DX simple without breaking deployed clients.
+  if (
+    typeof window !== "undefined" &&
+    ["localhost", "127.0.0.1"].includes(window.location.hostname)
+  ) {
+    return "http://localhost:5001";
+  }
+
+  return "";
+}
+
+async function apiFetch(path: string, init?: RequestInit) {
+  const baseUrl = getApiBaseUrl();
+  if (!baseUrl) {
+    throw new Error(
+      "Backend URL is not configured. Set NEXT_PUBLIC_API_URL to your backend API URL."
+    );
+  }
+  return fetch(`${baseUrl}${path}`, init);
+}
 
 interface ChatAreaProps {
   user: User;
@@ -37,9 +62,7 @@ export function ChatArea({
 
     const loadMessages = async () => {
       try {
-        const res = await fetch(
-          `${API_URL}/messages?session_id=${sessionId}`
-        );
+        const res = await apiFetch(`/messages?session_id=${sessionId}`);
         if (res.ok) {
           const data = await res.json();
           setMessages(data);
@@ -72,7 +95,7 @@ export function ChatArea({
       setMessages((prev) => [...prev, userMsg]);
 
       try {
-        const res = await fetch(`${API_URL}/chat`, {
+        const res = await apiFetch(`/chat`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -97,9 +120,18 @@ export function ChatArea({
           content: data.response,
         };
         setMessages((prev) => [...prev, assistantMsg]);
-      } catch (err) {
+      } catch (err: unknown) {
         console.error("Chat error:", err);
-        setMessages((prev) => prev.slice(0, -1));
+        const reason = err instanceof Error ? err.message : "Network request failed";
+        const errorMsg: Message = {
+          id: generateId(),
+          role: "assistant",
+          content:
+            `❌ I couldn't reach the backend (${reason}). ` +
+            `If you're local, make sure backend is running on port 5001. ` +
+            `If deployed, set NEXT_PUBLIC_API_URL to your live backend URL.`,
+        };
+        setMessages((prev) => [...prev, errorMsg]);
       } finally {
         setIsLoading(false);
       }
@@ -113,7 +145,7 @@ export function ChatArea({
       let activeSessionId = sessionId;
       if (!activeSessionId) {
         try {
-          const res = await fetch(`${API_URL}/sessions`, {
+          const res = await apiFetch(`/sessions`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ user_id: user.id }),
@@ -141,7 +173,7 @@ export function ChatArea({
       setIsLoading(true);
 
       try {
-        const res = await fetch(`${API_URL}/upload`, {
+        const res = await apiFetch(`/upload`, {
           method: "POST",
           body: formData,
         });

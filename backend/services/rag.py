@@ -9,6 +9,7 @@ DOC_REFERENCE_KEYWORDS = [
     "the pdf", "the file", "this file", "uploaded", "attached",
     "summarize it", "summarize this", "summarise", "what does it say",
     "what is it about", "explain it", "explain this",
+    "from the document", "according to the document", "in the pdf",
 ]
 
 
@@ -43,7 +44,9 @@ def build_rag_prompt(user_msg, history, docs):
             [f"{m['role']}: {m['content']}" for m in history[-10:]]
         )
 
-    docs_text = "\n\n---\n\n".join([d["metadata"]["text"] for d in docs])
+    docs_text = "\n\n---\n\n".join(
+        [d.get("metadata", {}).get("text", "") for d in docs if d.get("metadata", {}).get("text")]
+    )
 
     return f"""You are DOCBot, a document-aware AI assistant. Answer the user's question based ONLY on the provided document excerpts. Be precise and cite relevant parts of the documents in your answer. If the documents don't contain enough information, clearly state what you found and what's missing.
 
@@ -59,7 +62,9 @@ Assistant:"""
 
 def build_refine_prompt(user_msg, initial_answer, docs):
     """Build a refinement prompt to improve the initial RAG answer."""
-    docs_text = "\n\n---\n\n".join([d["metadata"]["text"] for d in docs])
+    docs_text = "\n\n---\n\n".join(
+        [d.get("metadata", {}).get("text", "") for d in docs if d.get("metadata", {}).get("text")]
+    )
 
     return f"""You are a quality-checking assistant. The user asked a question about their documents, and an initial answer was generated. Your job is to refine this answer: make it clearer, more accurate, better structured, and ensure it directly addresses the question. Remove any filler or unnecessary hedging.
 
@@ -79,10 +84,15 @@ def retrieve_docs(query, session_id=None):
     try:
         vector = get_query_embedding(query)
         # Filter by session if provided
-        filter_dict = {"session_id": session_id} if session_id else None
+        filter_dict = {"session_id": {"$eq": session_id}} if session_id else None
         results = query_embedding(vector, top_k=8, filter=filter_dict)
         # Filter by relevance score
-        relevant = [r for r in results if r.get("score", 0) >= RELEVANCE_THRESHOLD]
+        relevant = [
+            r
+            for r in results
+            if r.get("score", 0) >= RELEVANCE_THRESHOLD
+            and r.get("metadata", {}).get("text")
+        ]
         return relevant
     except Exception:
         return []
@@ -91,14 +101,21 @@ def retrieve_docs(query, session_id=None):
 def retrieve_all_session_docs(session_id):
     """Retrieve all document chunks for a session (for broad queries like 'summarize')."""
     try:
+        if not session_id:
+            return []
+
         # Use a generic embedding and rely on session filter to get all chunks
         vector = get_query_embedding("document content summary overview")
-        results = query_embedding(vector, top_k=20, filter={"session_id": session_id})
-        return results
+        results = query_embedding(
+            vector,
+            top_k=50,
+            filter={"session_id": {"$eq": session_id}},
+        )
+        return [r for r in results if r.get("metadata", {}).get("text")]
     except Exception:
         return []
 
 
 def has_relevant_docs(docs):
     """Check if retrieved docs are actually relevant enough to use."""
-    return len(docs) > 0
+    return any(d.get("metadata", {}).get("text") for d in docs)
