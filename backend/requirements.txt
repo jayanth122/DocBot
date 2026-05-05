@@ -1,0 +1,8 @@
+flask==3.1.1
+flask-cors==5.0.1
+gunicorn==23.0.0
+requests==2.32.3
+pinecone-client==5.0.1
+supabase==2.11.0
+python-dotenv==1.1.0
+PyPDF2==3.0.1
