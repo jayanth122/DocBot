@@ -102,7 +102,7 @@ def call_llm(prompt, history=None):
 
     if isinstance(last_error, requests.Response) and last_error.status_code == 429:
         raise LLMServiceError(
-            "The AI provider is rate-limiting requests right now. Please retry in a moment.",
+            "DocBot is a little tired right now from too many requests. Please try again in a moment.",
             status_code=429,
         )
 
