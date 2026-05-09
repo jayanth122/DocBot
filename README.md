@@ -1,7 +1,9 @@
 # DocBot
 
 AI-powered document assistant with chat history, PDF upload, and RAG (Retrieval-Augmented Generation).
+
 <img width="3024" height="1666" alt="image" src="https://github.com/user-attachments/assets/068fd6cb-d0af-42a3-81dd-87b1f935ad5f" />
+
 <img width="3024" height="1664" alt="image" src="https://github.com/user-attachments/assets/1295ddde-9e1e-4367-80d1-dc31cf4e59f1" />
 
 ## Stack
