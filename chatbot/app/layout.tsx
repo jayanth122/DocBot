@@ -9,7 +9,7 @@ export const metadata: Metadata = {
   title: "DocBot",
   description: "AI Document Assistant",
   icons: {
-    icon: "/ai-chat-bot-icon.webp",
+    icon: "/icon.png",
   },
 };
 
