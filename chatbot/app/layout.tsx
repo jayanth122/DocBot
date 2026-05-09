@@ -8,6 +8,9 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: "DocBot",
   description: "AI Document Assistant",
+  icons: {
+    icon: "/ai-chat-bot-icon.webp",
+  },
 };
 
 export default function RootLayout({
