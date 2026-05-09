@@ -1,6 +1,10 @@
 # DocBot
 
 AI-powered document assistant with chat history, PDF upload, and RAG (Retrieval-Augmented Generation).
+<img width="1000" height="1480" alt="image" src="https://github.com/user-attachments/assets/14b99542-fa92-4fe4-9b00-8e05846fd547" />
+
+<img width="3024" height="1666" alt="image" src="https://github.com/user-attachments/assets/068fd6cb-d0af-42a3-81dd-87b1f935ad5f" />
+<img width="3024" height="1664" alt="image" src="https://github.com/user-attachments/assets/1295ddde-9e1e-4367-80d1-dc31cf4e59f1" />
 
 ## Stack
 
@@ -109,16 +113,6 @@ npm run dev
 ```
 
 Frontend runs at `http://localhost:3000`.
-
-## API Endpoints
-
-- `GET /health`
-- `POST /sessions`
-- `GET /sessions`
-- `DELETE /sessions/<session_id>?user_id=<user_id>`
-- `GET /messages`
-- `POST /chat`
-- `POST /upload`
 
 ## Local Run Checklist
 
