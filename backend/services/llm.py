@@ -53,7 +53,7 @@ def _get_models(primary_env, fallback_env, default_model):
     return [primary_model] + [model for model in fallback_models if model != primary_model]
 
 
-def _post_openai_compatible(url, messages, model, api_key):
+def _post_openai_compatible(url, messages, model, api_key, request_timeout):
     return requests.post(
         url,
         headers={
@@ -64,11 +64,11 @@ def _post_openai_compatible(url, messages, model, api_key):
             "model": model,
             "messages": messages,
         },
-        timeout=60,
+        timeout=request_timeout,
     )
 
 
-def _post_gemini(messages, model, api_key):
+def _post_gemini(messages, model, api_key, request_timeout):
     contents = []
     for message in messages:
         role = "model" if message["role"] == "assistant" else "user"
@@ -78,7 +78,7 @@ def _post_gemini(messages, model, api_key):
         f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}",
         headers={"Content-Type": "application/json"},
         json={"contents": contents},
-        timeout=60,
+        timeout=request_timeout,
     )
 
 
@@ -104,7 +104,7 @@ def _parse_gemini(response):
         ) from err
 
 
-def _provider_configs():
+def _provider_configs(request_timeout):
     return {
         "openrouter": {
             "api_key": os.getenv("OPENROUTER_API_KEY"),
@@ -118,6 +118,7 @@ def _provider_configs():
                 messages,
                 model,
                 api_key,
+                request_timeout,
             ),
             "parse": lambda response: _parse_openai_compatible(response, "openrouter"),
         },
@@ -133,6 +134,7 @@ def _provider_configs():
                 messages,
                 model,
                 api_key,
+                request_timeout,
             ),
             "parse": lambda response: _parse_openai_compatible(response, "groq"),
         },
@@ -222,17 +224,33 @@ def _call_provider(provider_name, config, messages, max_retries, base_backoff):
 def call_llm(prompt, history=None):
     """Call the configured LLM providers with automatic failover."""
     messages = _build_messages(prompt, history)
-    max_retries = int(os.getenv("LLM_MAX_RETRIES", os.getenv("OPENROUTER_MAX_RETRIES", "2")))
+    max_retries = int(os.getenv("LLM_MAX_RETRIES", os.getenv("OPENROUTER_MAX_RETRIES", "1")))
     base_backoff = float(
         os.getenv("LLM_RETRY_BASE_SECONDS", os.getenv("OPENROUTER_RETRY_BASE_SECONDS", "1.0"))
     )
+    request_timeout = float(os.getenv("LLM_REQUEST_TIMEOUT_SECONDS", "20"))
+    total_timeout = float(os.getenv("LLM_TOTAL_TIMEOUT_SECONDS", "35"))
+    started_at = time.time()
 
     provider_errors = []
-    configs = _provider_configs()
+    configs = _provider_configs(request_timeout)
     for provider_name in _get_provider_order():
         config = configs.get(provider_name)
         if not config:
             continue
+
+        if not config.get("api_key"):
+            continue
+
+        if (time.time() - started_at) >= total_timeout:
+            provider_errors.append(
+                LLMServiceError(
+                    "Timed out while trying multiple AI providers.",
+                    status_code=504,
+                    provider=provider_name,
+                )
+            )
+            break
 
         try:
             return _call_provider(provider_name, config, messages, max_retries, base_backoff)

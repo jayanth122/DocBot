@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { getSupabaseClient } from "@/lib/supabase";
 import type { Session, User } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { apiFetch, toUserFacingError } from "@/lib/api";
 import {
   PanelLeftIcon,
   PlusIcon,
@@ -12,8 +13,6 @@ import {
   LogOutIcon,
   Trash2Icon,
 } from "lucide-react";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001";
 
 interface ChatSidebarProps {
   user: User;
@@ -39,7 +38,7 @@ export function ChatSidebar({
 
   const fetchSessions = async () => {
     try {
-      const res = await fetch(`${API_URL}/sessions?user_id=${user.id}`);
+      const res = await apiFetch(`/sessions?user_id=${encodeURIComponent(user.id)}`);
       if (res.ok) {
         const data = await res.json();
         setSessions(data);
@@ -64,14 +63,10 @@ export function ChatSidebar({
 
     setDeletingSessionId(sessionId);
     try {
-      const res = await fetch(
-        `${API_URL}/sessions/${sessionId}?user_id=${encodeURIComponent(user.id)}`,
+      await apiFetch(
+        `/sessions/${encodeURIComponent(sessionId)}?user_id=${encodeURIComponent(user.id)}`,
         { method: "DELETE" }
       );
-
-      if (!res.ok) {
-        throw new Error("Failed to delete session");
-      }
 
       setSessions((prev) => prev.filter((session) => session.id !== sessionId));
       if (currentSessionId === sessionId) {
@@ -79,6 +74,7 @@ export function ChatSidebar({
       }
     } catch (err) {
       console.error("Failed to delete session:", err);
+      window.alert(toUserFacingError(err));
     } finally {
       setDeletingSessionId(null);
     }

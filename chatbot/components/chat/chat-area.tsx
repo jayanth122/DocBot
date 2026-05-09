@@ -3,36 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Message, User } from "@/lib/types";
 import { cn, generateId } from "@/lib/utils";
+import { apiFetch, toUserFacingError } from "@/lib/api";
 import { ChatInput } from "./chat-input";
 import { Greeting } from "./greeting";
 import { PanelLeftIcon } from "lucide-react";
-
-function getApiBaseUrl() {
-  const configured = process.env.NEXT_PUBLIC_API_URL?.trim();
-  if (configured) {
-    return configured.replace(/\/$/, "");
-  }
-
-  // Local-only fallback to keep DX simple without breaking deployed clients.
-  if (
-    typeof window !== "undefined" &&
-    ["localhost", "127.0.0.1"].includes(window.location.hostname)
-  ) {
-    return "http://localhost:5001";
-  }
-
-  return "";
-}
-
-async function apiFetch(path: string, init?: RequestInit) {
-  const baseUrl = getApiBaseUrl();
-  if (!baseUrl) {
-    throw new Error(
-      "Backend URL is not configured. Set NEXT_PUBLIC_API_URL to your backend API URL."
-    );
-  }
-  return fetch(`${baseUrl}${path}`, init);
-}
 
 interface ChatAreaProps {
   user: User;
@@ -122,14 +96,10 @@ export function ChatArea({
         setMessages((prev) => [...prev, assistantMsg]);
       } catch (err: unknown) {
         console.error("Chat error:", err);
-        const reason = err instanceof Error ? err.message : "Network request failed";
         const errorMsg: Message = {
           id: generateId(),
           role: "assistant",
-          content:
-            `❌ I couldn't reach the backend (${reason}). ` +
-            `If you're local, make sure backend is running on port 5001. ` +
-            `If deployed, set NEXT_PUBLIC_API_URL to your live backend URL.`,
+          content: toUserFacingError(err),
         };
         setMessages((prev) => [...prev, errorMsg]);
       } finally {
@@ -155,6 +125,12 @@ export function ChatArea({
           onSessionCreated(data.id);
         } catch (err) {
           console.error("Failed to create session:", err);
+          const errorMsg: Message = {
+            id: generateId(),
+            role: "assistant",
+            content: toUserFacingError(err),
+          };
+          setMessages((prev) => [...prev, errorMsg]);
           return;
         }
       }
@@ -191,11 +167,11 @@ export function ChatArea({
           content: `✅ ${data.message} (${data.chunks} chunks indexed). You can now ask questions about this document.`,
         };
         setMessages((prev) => [...prev, resultMsg]);
-      } catch (err: any) {
+      } catch (err: unknown) {
         const errorMsg: Message = {
           id: generateId(),
           role: "assistant",
-          content: `❌ Upload failed: ${err.message}`,
+          content: toUserFacingError(err),
         };
         setMessages((prev) => [...prev, errorMsg]);
       } finally {

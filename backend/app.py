@@ -14,8 +14,8 @@ from services.rag import (
     build_chat_prompt, build_rag_prompt, build_refine_prompt,
     retrieve_docs, retrieve_all_session_docs, has_relevant_docs, is_doc_reference,
 )
-from services.embeddings import get_embedding
-from services.pinecone_client import upsert_embedding, delete_session_embeddings
+from services.embeddings import get_embeddings
+from services.pinecone_client import upsert_embeddings, delete_session_embeddings
 from services.supabase_client import (
     create_session,
     delete_session,
@@ -101,7 +101,11 @@ def chat():
         session_id = session["id"]
 
     # Fetch chat history
-    history = get_messages(session_id)
+    try:
+        history = get_messages(session_id)
+    except Exception as err:
+        app.logger.warning("Failed to load history for session %s: %s", session_id, err)
+        history = []
 
     # Determine retrieval strategy
     docs = []
@@ -145,8 +149,11 @@ def chat():
         response = str(err) or "The AI provider is temporarily unavailable."
 
     # Save messages to Supabase
-    save_message(session_id, "user", message)
-    save_message(session_id, "assistant", response)
+    try:
+        save_message(session_id, "user", message)
+        save_message(session_id, "assistant", response)
+    except Exception as err:
+        app.logger.warning("Failed to persist messages for session %s: %s", session_id, err)
 
     return jsonify({
         "response": response,
@@ -183,16 +190,21 @@ def upload():
         # Chunk the text
         chunks = chunk_text(text, chunk_size=500, overlap=50)
 
-        # Embed and store each chunk with session metadata
-        for i, chunk in enumerate(chunks):
-            vector = get_embedding(chunk)
+        # Embed chunks in batches to reduce latency and provider round trips.
+        vectors = get_embeddings(chunks, input_type="passage")
+        pinecone_vectors = []
+
+        # Store each chunk with session metadata
+        for i, (chunk, vector) in enumerate(zip(chunks, vectors)):
             doc_id = f"{filename}_{i}_{uuid.uuid4().hex[:8]}"
             metadata = {
                 "text": chunk,
                 "source": filename,
                 "session_id": session_id,
             }
-            upsert_embedding(doc_id, vector, metadata)
+            pinecone_vectors.append((doc_id, vector, metadata))
+
+        upsert_embeddings(pinecone_vectors)
 
         return jsonify({
             "message": f"Uploaded and processed {filename}",

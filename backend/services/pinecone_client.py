@@ -11,6 +11,13 @@ def upsert_embedding(id, vector, metadata):
     index.upsert(vectors=[(id, vector, metadata)])
 
 
+def upsert_embeddings(vectors):
+    """Store multiple embedding vectors in Pinecone."""
+    if not vectors:
+        return
+    index.upsert(vectors=vectors)
+
+
 def query_embedding(vector, top_k=5, filter=None):
     """Query Pinecone for the most similar vectors, optionally filtered."""
     kwargs = {"vector": vector, "top_k": top_k, "include_metadata": True}
