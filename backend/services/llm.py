@@ -28,13 +28,13 @@ def _extract_error_detail(response):
 
 
 def _build_messages(prompt, history=None):
-    messages = []
+    messages = [{"role": "system", "content": prompt["system"]}]
 
     if history:
         for msg in history:
             messages.append({"role": msg["role"], "content": msg["content"]})
 
-    messages.append({"role": "user", "content": prompt})
+    messages.append({"role": "user", "content": prompt["user"]})
     return messages
 
 
@@ -70,14 +70,22 @@ def _post_openai_compatible(url, messages, model, api_key, request_timeout):
 
 def _post_gemini(messages, model, api_key, request_timeout):
     contents = []
+    system_text = ""
     for message in messages:
+        if message["role"] == "system":
+            system_text += message["content"] + "\n"
+            continue
         role = "model" if message["role"] == "assistant" else "user"
         contents.append({"role": role, "parts": [{"text": message["content"]}]})
+
+    body = {"contents": contents}
+    if system_text.strip():
+        body["system_instruction"] = {"parts": [{"text": system_text.strip()}]}
 
     return requests.post(
         f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}",
         headers={"Content-Type": "application/json"},
-        json={"contents": contents},
+        json=body,
         timeout=request_timeout,
     )
 
@@ -221,8 +229,12 @@ def _call_provider(provider_name, config, messages, max_retries, base_backoff):
     )
 
 
-def call_llm(prompt, history=None):
-    """Call the configured LLM providers with automatic failover."""
+def call_llm(prompt):
+    """Call the configured LLM providers with automatic failover.
+    
+    prompt: dict with keys "system", "user", and optional "history".
+    """
+    history = prompt.get("history") or []
     messages = _build_messages(prompt, history)
     max_retries = int(os.getenv("LLM_MAX_RETRIES", os.getenv("OPENROUTER_MAX_RETRIES", "1")))
     base_backoff = float(

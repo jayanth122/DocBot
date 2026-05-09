@@ -29,12 +29,6 @@ def get_embeddings(texts, input_type="passage"):
     return vectors
 
 
-def get_embedding(text):
-    """Get one passage embedding vector."""
-    vectors = get_embeddings([text], input_type="passage")
-    return vectors[0]
-
-
 def get_query_embedding(text):
     """Get embedding for a query (uses query input_type for better retrieval)."""
     vectors = get_embeddings([text], input_type="query")

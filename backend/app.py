@@ -13,7 +13,8 @@ import PyPDF2
 from services.llm import call_llm, LLMServiceError
 from services.rag import (
     build_chat_prompt, build_rag_prompt, build_refine_prompt,
-    retrieve_docs, retrieve_all_session_docs, has_relevant_docs, is_doc_reference,
+    retrieve_docs, retrieve_all_session_docs, has_relevant_docs,
+    is_doc_reference, is_trivial_message,
 )
 from services.embeddings import get_embeddings
 from services.pinecone_client import upsert_embeddings, delete_session_embeddings
@@ -126,15 +127,15 @@ def chat():
         app.logger.warning("Failed to load history for session %s: %s", session_id, err)
         history = []
 
-    # Determine retrieval strategy
+    # Determine retrieval strategy — skip Pinecone for trivial messages
     docs = []
     doc_intent = is_doc_reference(message)
+    trivial = is_trivial_message(message)
+
     if doc_intent:
-        # User is referring to their uploaded doc — fetch all session chunks
         docs = retrieve_all_session_docs(session_id)
-    
-    if not docs:
-        # Try semantic search filtered by session
+
+    if not docs and not trivial:
         docs = retrieve_docs(message, session_id=session_id)
 
     has_docs = has_relevant_docs(docs)

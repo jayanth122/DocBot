@@ -54,10 +54,17 @@ async function forward(request: NextRequest, path: string[]) {
 
   try {
     const response = await fetch(targetUrl, init);
+
+    // Read full body instead of streaming to avoid content-encoding
+    // mismatch (Node fetch auto-decompresses gzip but keeps the header).
+    const body = await response.arrayBuffer();
     const responseHeaders = new Headers(response.headers);
+    responseHeaders.delete("content-encoding");
+    responseHeaders.delete("transfer-encoding");
+    responseHeaders.delete("content-length");
     responseHeaders.set("cache-control", "no-store");
 
-    return new NextResponse(response.body, {
+    return new NextResponse(body, {
       status: response.status,
       headers: responseHeaders,
     });

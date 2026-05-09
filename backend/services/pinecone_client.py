@@ -6,11 +6,6 @@ pc = Pinecone(api_key=os.getenv("PINECONE_API_KEY"))
 index = pc.Index(os.getenv("PINECONE_INDEX_NAME", "docbot"))
 
 
-def upsert_embedding(id, vector, metadata):
-    """Store an embedding vector with metadata in Pinecone."""
-    index.upsert(vectors=[(id, vector, metadata)])
-
-
 def upsert_embeddings(vectors):
     """Store multiple embedding vectors in Pinecone."""
     if not vectors:
@@ -52,8 +47,3 @@ def query_embedding(vector, top_k=5, filter=None):
 def delete_session_embeddings(session_id):
     """Delete all vectors associated with a chat session."""
     index.delete(filter={"session_id": {"$eq": session_id}})
-
-
-def reset_index():
-    """Delete all vectors from the configured Pinecone index."""
-    index.delete(delete_all=True)
