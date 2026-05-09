@@ -63,8 +63,9 @@ def _post_openai_compatible(url, messages, model, api_key, request_timeout):
         json={
             "model": model,
             "messages": messages,
+            "max_tokens": 1024,
         },
-        timeout=request_timeout,
+        timeout=(5, request_timeout),
     )
 
 
@@ -78,7 +79,10 @@ def _post_gemini(messages, model, api_key, request_timeout):
         role = "model" if message["role"] == "assistant" else "user"
         contents.append({"role": role, "parts": [{"text": message["content"]}]})
 
-    body = {"contents": contents}
+    body = {
+        "contents": contents,
+        "generationConfig": {"maxOutputTokens": 1024},
+    }
     if system_text.strip():
         body["system_instruction"] = {"parts": [{"text": system_text.strip()}]}
 
@@ -86,7 +90,7 @@ def _post_gemini(messages, model, api_key, request_timeout):
         f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}",
         headers={"Content-Type": "application/json"},
         json=body,
-        timeout=request_timeout,
+        timeout=(5, request_timeout),
     )
 
 
