@@ -7,6 +7,7 @@ load_dotenv()
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
+from werkzeug.exceptions import HTTPException
 import PyPDF2
 
 from services.llm import call_llm, LLMServiceError
@@ -30,6 +31,24 @@ CORS(app)
 UPLOAD_FOLDER = "/tmp/uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 ENABLE_RAG_REFINE = os.getenv("ENABLE_RAG_REFINE", "false").lower() == "true"
+
+
+@app.errorhandler(HTTPException)
+def handle_http_error(err):
+    """Ensure Flask HTTP errors are returned as JSON."""
+    return jsonify({"error": err.name, "message": err.description}), err.code
+
+
+@app.errorhandler(Exception)
+def handle_unexpected_error(err):
+    """Catch unexpected failures and return a stable JSON response."""
+    app.logger.exception("Unhandled backend error: %s", err)
+    return jsonify(
+        {
+            "error": "Internal Server Error",
+            "message": "The server hit an unexpected issue. Please retry.",
+        }
+    ), 500
 
 
 @app.route("/health", methods=["GET"])

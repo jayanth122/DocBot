@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Message, User } from "@/lib/types";
 import { cn, generateId } from "@/lib/utils";
-import { apiFetch, toUserFacingError } from "@/lib/api";
+import { apiFetch, apiFetchJson, toUserFacingError } from "@/lib/api";
 import { ChatInput } from "./chat-input";
 import { Greeting } from "./greeting";
 import { PanelLeftIcon } from "lucide-react";
@@ -36,11 +36,8 @@ export function ChatArea({
 
     const loadMessages = async () => {
       try {
-        const res = await apiFetch(`/messages?session_id=${sessionId}`);
-        if (res.ok) {
-          const data = await res.json();
-          setMessages(data);
-        }
+        const data = await apiFetchJson<Message[]>(`/messages?session_id=${sessionId}`);
+        setMessages(data);
       } catch (err) {
         console.error("Failed to load messages:", err);
       }
@@ -69,7 +66,7 @@ export function ChatArea({
       setMessages((prev) => [...prev, userMsg]);
 
       try {
-        const res = await apiFetch(`/chat`, {
+        const data = await apiFetchJson<{ response: string; session_id: string }>(`/chat`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -78,10 +75,6 @@ export function ChatArea({
             user_id: user.id,
           }),
         });
-
-        if (!res.ok) throw new Error("Chat failed");
-
-        const data = await res.json();
 
         // If a new session was created
         if (!sessionId && data.session_id) {
@@ -115,12 +108,11 @@ export function ChatArea({
       let activeSessionId = sessionId;
       if (!activeSessionId) {
         try {
-          const res = await apiFetch(`/sessions`, {
+          const data = await apiFetchJson<{ id: string }>(`/sessions`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ user_id: user.id }),
           });
-          const data = await res.json();
           activeSessionId = data.id;
           onSessionCreated(data.id);
         } catch (err) {
@@ -149,17 +141,10 @@ export function ChatArea({
       setIsLoading(true);
 
       try {
-        const res = await apiFetch(`/upload`, {
+        const data = await apiFetchJson<{ message: string; chunks: number }>(`/upload`, {
           method: "POST",
           body: formData,
         });
-
-        if (!res.ok) {
-          const err = await res.json();
-          throw new Error(err.error || "Upload failed");
-        }
-
-        const data = await res.json();
 
         const resultMsg: Message = {
           id: generateId(),

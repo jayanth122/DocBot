@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { getSupabaseClient } from "@/lib/supabase";
 import type { Session, User } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { apiFetch, toUserFacingError } from "@/lib/api";
+import { apiFetch, apiFetchJson, toUserFacingError } from "@/lib/api";
 import {
   PanelLeftIcon,
   PlusIcon,
@@ -38,11 +38,8 @@ export function ChatSidebar({
 
   const fetchSessions = async () => {
     try {
-      const res = await apiFetch(`/sessions?user_id=${encodeURIComponent(user.id)}`);
-      if (res.ok) {
-        const data = await res.json();
-        setSessions(data);
-      }
+      const data = await apiFetchJson<Session[]>(`/sessions?user_id=${encodeURIComponent(user.id)}`);
+      setSessions(data);
     } catch (err) {
       console.error("Failed to fetch sessions:", err);
     }

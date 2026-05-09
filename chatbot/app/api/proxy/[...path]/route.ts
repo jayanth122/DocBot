@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
+const UPSTREAM_TIMEOUT_MS = 45000;
+
 function getBackendBaseUrl() {
   const configured =
     process.env.BACKEND_API_URL?.trim() || process.env.NEXT_PUBLIC_API_URL?.trim();
@@ -42,6 +44,10 @@ async function forward(request: NextRequest, path: string[]) {
     redirect: "follow",
   };
 
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
+  init.signal = controller.signal;
+
   if (request.method !== "GET" && request.method !== "HEAD") {
     init.body = await request.arrayBuffer();
   }
@@ -55,7 +61,19 @@ async function forward(request: NextRequest, path: string[]) {
       status: response.status,
       headers: responseHeaders,
     });
-  } catch {
+  } catch (err) {
+    const isAbort = err instanceof DOMException && err.name === "AbortError";
+
+    if (isAbort) {
+      return NextResponse.json(
+        {
+          error: "Backend timeout",
+          message: "The backend took too long to respond. Please try again.",
+        },
+        { status: 504 }
+      );
+    }
+
     return NextResponse.json(
       {
         error: "Backend unavailable",
@@ -63,6 +81,8 @@ async function forward(request: NextRequest, path: string[]) {
       },
       { status: 503 }
     );
+  } finally {
+    clearTimeout(timeout);
   }
 }
 

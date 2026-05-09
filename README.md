@@ -95,7 +95,11 @@ Create `chatbot/.env.local`:
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 NEXT_PUBLIC_API_URL=http://localhost:5001
+# For deployed Next server-side proxy (recommended in production):
+BACKEND_API_URL=http://localhost:5001
 ```
+
+In production, set `BACKEND_API_URL` in your frontend host (Vercel/Render static web service) to your deployed backend URL.
 
 Run frontend:
 

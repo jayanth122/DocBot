@@ -103,6 +103,20 @@ export async function apiFetch(path: string, init?: RequestInit): Promise<Respon
   throw new ApiError("Request failed unexpectedly.");
 }
 
+export async function apiFetchJson<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await apiFetch(path, init);
+
+  try {
+    return (await response.json()) as T;
+  } catch {
+    throw new ApiError(
+      "The server returned an invalid response. Please try again.",
+      502,
+      true
+    );
+  }
+}
+
 export function toUserFacingError(err: unknown) {
   if (err instanceof ApiError) {
     if (err.status === 503 || err.status === 504) {
@@ -112,6 +126,10 @@ export function toUserFacingError(err: unknown) {
       return "I\u2019m getting rate-limited at the moment. Please retry in a short while.";
     }
     return err.message || "Something went wrong while processing your request.";
+  }
+
+  if (err instanceof Error && err.message) {
+    return err.message;
   }
 
   return "Something went wrong while processing your request.";
