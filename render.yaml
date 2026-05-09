@@ -5,7 +5,7 @@ services:
     runtime: python
     rootDir: backend
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app --workers 2 --threads 4 --timeout 120 --graceful-timeout 30 --keep-alive 5
+    startCommand: gunicorn app:app --workers 1 --worker-class sync --timeout 60 --graceful-timeout 10 --bind 0.0.0.0:10000 --access-logfile - --error-logfile -
     envVars:
       - key: OPENROUTER_API_KEY
         sync: false
@@ -22,10 +22,33 @@ services:
       - key: PINECONE_INDEX_NAME
         sync: false
       - key: LLM_MAX_RETRIES
-        value: "1"
+        value: "0"
       - key: LLM_REQUEST_TIMEOUT_SECONDS
-        value: "20"
+        value: "12"
       - key: LLM_TOTAL_TIMEOUT_SECONDS
-        value: "35"
+        value: "25"
+      - key: ENABLE_RAG_REFINE
+        value: "false"
+      - key: EMBED_BATCH_SIZE
+        value: "8"
       - key: FRONTEND_URL
+        sync: false
+
+  - type: cron
+    name: docbot-keep-warm
+    schedule: "*/14 * * * *"
+    buildCommand: pip install requests
+    startCommand: |
+      python - <<'PY'
+      import requests
+      import os
+      backend_url = os.getenv("BACKEND_URL", "https://docbot-e1ft.onrender.com")
+      try:
+        requests.get(f"{backend_url}/health", timeout=5)
+        print("✓ Kept backend warm")
+      except Exception as e:
+        print(f"✗ Keep-warm ping failed: {e}")
+      PY
+    envVars:
+      - key: BACKEND_URL
         sync: false

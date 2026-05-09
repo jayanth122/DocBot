@@ -2,9 +2,9 @@ from services.embeddings import get_query_embedding
 from services.pinecone_client import query_embedding
 
 RELEVANCE_THRESHOLD = 0.25
-MAX_HISTORY_TURNS = 8
-MAX_DOCS_IN_PROMPT = 6
-MAX_DOC_CHARS = 1200
+MAX_HISTORY_TURNS = 6
+MAX_DOCS_IN_PROMPT = 4
+MAX_DOC_CHARS = 800
 
 # Phrases that indicate the user is referring to an uploaded document
 DOC_REFERENCE_KEYWORDS = [
@@ -123,7 +123,7 @@ def retrieve_docs(query, session_id=None):
         vector = get_query_embedding(query)
         # Filter by session if provided
         filter_dict = {"session_id": {"$eq": session_id}} if session_id else None
-        results = query_embedding(vector, top_k=12, filter=filter_dict)
+        results = query_embedding(vector, top_k=8, filter=filter_dict)
         # Filter by relevance score
         relevant = [
             r
@@ -147,7 +147,7 @@ def retrieve_all_session_docs(session_id):
         vector = get_query_embedding("document content summary overview")
         results = query_embedding(
             vector,
-            top_k=24,
+            top_k=12,
             filter={"session_id": {"$eq": session_id}},
         )
         docs = [r for r in results if r.get("metadata", {}).get("text")]

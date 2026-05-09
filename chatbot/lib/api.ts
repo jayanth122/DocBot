@@ -1,5 +1,5 @@
-const DEFAULT_TIMEOUT_MS = 90000;
-const DEFAULT_RETRIES = 1;
+const DEFAULT_TIMEOUT_MS = 35000;
+const DEFAULT_RETRIES = 0;
 
 export class ApiError extends Error {
   status: number;
